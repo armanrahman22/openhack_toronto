@@ -11,6 +11,9 @@ from keras import backend as K
 from keras.layers import Conv2D, Dense, Dropout, Flatten, MaxPooling2D, BatchNormalization
 from keras.models import Sequential
 from keras.utils import to_categorical
+from keras.preprocessing.image import ImageDataGenerator
+from keras.optimizers import Adam
+from keras.callbacks import LearningRateScheduler
 from skimage import img_as_float, io
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
@@ -30,6 +33,7 @@ def process_images(main_folder):
     y_enc = label_encoder.transform(y)
     y_cat = to_categorical(y_enc)
     input_shape = x[0].shape
+    print(input_shape)
     return x, y_cat, input_shape, num_classes
 
 
@@ -41,70 +45,53 @@ def get_train_test(x, y):
 def createModel(input_shape, num_classes, kernel_size):
     model = Sequential()
     
-    model.add(Conv2D(32, kernel_size=(kernel_size, kernel_size), activation='relu', input_shape=input_shape))
+    model.add(Conv2D(filters = 32, kernel_size = (kernel_size, kernel_size), activation='relu', input_shape = input_shape))
     model.add(BatchNormalization())
-    model.add(Conv2D(64, (kernel_size, kernel_size), activation='relu'))
+    model.add(Conv2D(filters = 32, kernel_size = (kernel_size, kernel_size), activation='relu'))
     model.add(BatchNormalization())
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
-    
-    model.add(Conv2D(32, (kernel_size, kernel_size), activation='relu'))
+    model.add(MaxPooling2D(strides=(2,2)))
+    model.add(Dropout(0.10))
+
+    model.add(Conv2D(filters = 32, kernel_size = (kernel_size, kernel_size), activation='relu'))
     model.add(BatchNormalization())
-    model.add(Conv2D(64, (kernel_size, kernel_size), activation='relu'))
+    model.add(Conv2D(filters = 32, kernel_size = (kernel_size, kernel_size), activation='relu'))
     model.add(BatchNormalization())
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
-    
+    model.add(MaxPooling2D(strides=(2,2)))
+    model.add(Dropout(0.10))
+
     model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.5))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dense(1024, activation='relu'))
+    model.add(Dropout(0.2))
     model.add(Dense(num_classes, activation='softmax'))
     return model
 
-
 def trainModel(input_shape, num_classes, batch_size, epochs, x_train, x_test, 
-               y_train, y_test, train_generator, validation_generator, kernel_size):
+               y_train, y_test, train_generator, kernel_size):
     
     model = createModel(input_shape, num_classes, kernel_size)
-    model.compile(optimizer=keras.optimizers.SGD(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer = Adam(lr=1e-4), metrics=["accuracy"])
+    annealer = LearningRateScheduler(lambda x: 1e-3 * 0.9 ** x)
     
     history = model.fit_generator(
                 train_generator,
                 steps_per_epoch= x_train.shape[0]  // batch_size,
                 epochs=epochs,
-                validation_data=validation_generator,
-                validation_steps= x_test.shape[0] // batch_size)
+                validation_data=(x_test, y_test),
+                callbacks=[annealer])
     
     score = model.evaluate(x_test, y_test, verbose=1)
     print("Score:" + str(score))
     return history, model
-
-
-def trainModel(input_shape, num_classes, batch_size, epochs, x_train, x_test, 
-               y_train, y_test, kernel_size):
-    
-    model = createModel(input_shape, num_classes, kernel_size)
-    model.compile(optimizer=keras.optimizers.SGD(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
-    
-    history = model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, verbose=1, 
-                validation_data=(x_test, y_test))
-    
-    score = model.evaluate(x_test, y_test, verbose=1)
-    print("Score:" + str(score))
-    return history, model
-
 
 def generate_images(x_train, x_test, y_train, y_test, batch_size):
     train_datagen = ImageDataGenerator(
-        rescale=1. / 255,
         shear_range=0.2,
         zoom_range=0.2,
         horizontal_flip=True)
-    test_datagen = ImageDataGenerator(rescale=1. / 255)
     
     train_generator = train_datagen.flow(x_train, y_train, batch_size=batch_size)
-    validation_generator = test_datagen.flow(x_test, y_test, batch_size=batch_size)
-    return train_generator, validation_generator
+    return train_generator 
 
 
 def plot_loss(history):
@@ -134,9 +121,9 @@ def main(main_folder, batch_size, epochs, kernel_size):
     x, y, input_shape, num_classes = process_images(main_folder)
     x_train, x_test, y_train, y_test = get_train_test(x, y)
     
-    # train_generator, validation_generator = generate_images(x_train, x_test, y_train, y_test, batch_size)
-    history, model = trainModel(input_shape, num_classes, batch_size, epochs, x_train, 
-                        x_test, y_train, y_test, kernel_size)
+    train_generator = generate_images(x_train, x_test, y_train, y_test, batch_size)
+    history, model = trainModel(input_shape, num_classes, batch_size, epochs, x_train, x_test, 
+                       y_train, y_test, train_generator, kernel_size)
     plot_loss(history)
     plot_accuracy(history)
     filepath = main_folder + "/model_2_" + str(batch_size) + "_" + str(epochs) + ".h5"

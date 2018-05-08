@@ -7,8 +7,8 @@ import glob
 
 
 def process_files(path):
-    npy_files = glob.glob(path + '/**/*.npy', recursive=True)
-    all_files = glob.glob(path + '/**/*.*', recursive=True)
+    npy_files = glob.glob(path + '\\**\\*.npy', recursive=True)
+    all_files = glob.glob(path + '\\**\\*.*', recursive=True)
     all_image_files = set(all_files) - set(npy_files)
     print(len(all_image_files))
     x = []
@@ -26,11 +26,11 @@ def process_files(path):
 
 def get_output_file(path, filename):
     os.join(path,filename)
-    return '/'.join(file_path_parts) + image_name_base + '.npy'
+    return '\\'.join(file_path_parts) + image_name_base + '.npy'
 
 
 def get_label(image_file):
-    file_path_parts = image_file.split('/')
+    file_path_parts = image_file.split('\\')
     file_path_parts.pop()
     return file_path_parts.pop()
 
@@ -83,4 +83,4 @@ def plot_img_and_hist(image, axes):
 
 
 if __name__ == "__main__":
-    process_files("/Users/armanrahman/Downloads/gear_images")
+    process_files(r'C:\Users\Arman\Downloads\openhack_toronto\gear_images')
